@@ -9,6 +9,16 @@ TEXT_PRINT_ANIMATION_STEP_SPAN_GLOBAL_TIMESPAN = {
   20.milliseconds,
 }
 
+SCENE_SIZE_W = 100
+SCENE_SIZE_H = 26
+
+DIALOG_SIZE_H = 5
+DIALOG_POS_H = SCENE_SIZE_H-DIALOG_SIZE_H+1
+
+FRAME_PART_A = "─"
+FRAME_PART_B = "│"
+FRAME_PART_C = "*"
+
 def type_text(time_milli_sleep : UInt8, text : String)
   # mi = {10.milliseconds,20.milliseconds}
   text.each_char do |char|
@@ -23,27 +33,31 @@ end
 
 
 def make_game_opening_screen
-  frame_part_A = "─"
-  frame_part_B = "│"
-  puts "\e[15;5H#{frame_part_A*100}"
+  puts "\e[15;5H#{FRAME_PART_A*100}"
   10.times do |num|
-    puts "\e[#{16+num};5H#{frame_part_B}"
+    puts "\e[#{16+num};5H#{FRAME_PART_B}"
   end
-  puts "\e[15;5H#{frame_part_A*10}"
+  puts "\e[15;5H#{FRAME_PART_A*10}"
 end
 
 def make_game_play_dialog_animate
-  frame_part_A = "─"
-  frame_part_B = "│"
-  # puts "\e[40;5H#{frame_part_A*100}"
-  # puts "\e[40;5H#{frame_part_A*100}"
   30.times do |num|
-    puts "\e[15;H#{("*"+frame_part_A*(num*2)+"*").center(100, '.')}"
-    puts "\e[16;H#{(frame_part_B+"."*(num*2)+frame_part_B).center(100, '.')}"
-    puts "\e[17;H#{("*"+frame_part_A*(num*2)+"*").center(100, '.')}"
-    # puts "\e[16;H#{(frame_part_B).ljust(num, '.')}"
+    puts "\e[#{DIALOG_POS_H};H#{(FRAME_PART_C+FRAME_PART_A*(num*2)+FRAME_PART_C).center(100, '.')}"
+    1.upto(DIALOG_SIZE_H-1) do |n|
+      puts "\e[#{DIALOG_POS_H+n};H#{(FRAME_PART_B+"."*(num*2)+FRAME_PART_B).center(100, '.')}"
+    end
+    puts "\e[#{SCENE_SIZE_H};H#{(FRAME_PART_C+FRAME_PART_A*(num*2)+FRAME_PART_C).center(100, '.')}"
+    # puts "\e[16;H#{(FRAME_PART_B).ljust(num, '.')}"
     sleep 6.milliseconds
   end
+end
+
+def make_game_play_dialog_solid
+    puts "\e[#{DIALOG_POS_H};H#{(FRAME_PART_C+FRAME_PART_A*(29*2)+FRAME_PART_C).center(100, '.')}"
+    1.upto(DIALOG_SIZE_H-1) do |n|
+      puts "\e[#{DIALOG_POS_H+n};H#{(FRAME_PART_B+"."*(29*2)+FRAME_PART_B).center(100, '.')}"
+    end
+    puts "\e[#{SCENE_SIZE_H};H#{(FRAME_PART_C+FRAME_PART_A*(29*2)+FRAME_PART_C).center(100, '.')}"
 end
 
 # type_text 1, "こんにちは！\nコンソールをフォーカスしてえんたーをおしてね▼"
@@ -60,5 +74,12 @@ end
 # sleep 100.milliseconds
 # type_text 0, "さいなら！"
 # make_game_opening_screen
-make_game_play_dialog_animate
-sleep 1.seconds
+# make_game_play_dialog_animate
+
+make_game_play_dialog_solid
+# sleep 1.seconds
+
+STDIN.raw do |io|
+  sleep 100.milliseconds
+  next if io.read_char == 'q'
+end
