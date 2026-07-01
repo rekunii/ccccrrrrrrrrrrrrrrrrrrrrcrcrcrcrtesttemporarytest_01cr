@@ -45,7 +45,7 @@ def make_game_play_dialog_animate
   print "\e[#{DIALOG_POS_H};H#{"A..."*25}" # 確認用(is dialog written on center)
   (DIALOG_SIZE_W//2).times do |num|
     print "\e[#{DIALOG_POS_H};#{100//2-num}H#{FRAME_PART_C+FRAME_PART_A*num*2+FRAME_PART_C}"
-    1.upto(DIALOG_SIZE_H-1) do |n|
+    1.upto(DIALOG_SIZE_H-2) do |n|
       print "\e[#{DIALOG_POS_H+n};#{100//2-num}H\e[K#{FRAME_PART_B}\e[#{num*2}C#{FRAME_PART_B}"
     end
     print "\e[#{SCENE_SIZE_H};#{100//2-num}H#{FRAME_PART_C+FRAME_PART_A*num*2+FRAME_PART_C}"
@@ -54,11 +54,12 @@ def make_game_play_dialog_animate
 end
 
 def make_game_play_dialog_solid
-    puts "\e[#{DIALOG_POS_H};H#{(FRAME_PART_C+FRAME_PART_A*(29*2)+FRAME_PART_C).center(100, '.')}"
-    1.upto(DIALOG_SIZE_H-1) do |n|
-      puts "\e[#{DIALOG_POS_H+n};H#{(FRAME_PART_B+"."*(29*2)+FRAME_PART_B).center(100, '.')}"
+    print "\e[#{DIALOG_POS_H};H#{"A..."*25}" # 確認用(is dialog written on center)
+    print "\e[#{DIALOG_POS_H};H\e[#{(100-DIALOG_SIZE_W)//2}C#{(FRAME_PART_C+FRAME_PART_A*(DIALOG_SIZE_W-2)+FRAME_PART_C)}"
+    1.upto(DIALOG_SIZE_H-2) do |n|
+      print "\e[#{DIALOG_POS_H+n};#{(100-DIALOG_SIZE_W)//2+1}H\e[K#{FRAME_PART_B}\e[#{DIALOG_SIZE_W-2}C#{FRAME_PART_B}"
     end
-    puts "\e[#{SCENE_SIZE_H};H#{(FRAME_PART_C+FRAME_PART_A*(29*2)+FRAME_PART_C).center(100, '.')}"
+    print "\e[#{SCENE_SIZE_H};H\e[#{(100-DIALOG_SIZE_W)//2}C#{(FRAME_PART_C+FRAME_PART_A*(DIALOG_SIZE_W-2)+FRAME_PART_C)}"
 end
 
 def print_game_play_dialog_text
