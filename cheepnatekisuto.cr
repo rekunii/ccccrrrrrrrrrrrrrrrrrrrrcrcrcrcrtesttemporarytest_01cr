@@ -12,6 +12,7 @@ TEXT_PRINT_ANIMATION_STEP_SPAN_GLOBAL_TIMESPAN = {
 SCENE_SIZE_W = 100
 SCENE_SIZE_H = 26
 
+DIALOG_SIZE_W = 60
 DIALOG_SIZE_H = 5
 DIALOG_POS_H = SCENE_SIZE_H-DIALOG_SIZE_H+1
 
@@ -31,7 +32,7 @@ def type_text(time_milli_sleep : UInt8, text : String)
   puts
 end
 
-
+  
 def make_game_opening_screen
   puts "\e[15;5H#{FRAME_PART_A*100}"
   10.times do |num|
@@ -41,13 +42,13 @@ def make_game_opening_screen
 end
 
 def make_game_play_dialog_animate
-  30.times do |num|
-    puts "\e[#{DIALOG_POS_H};H#{(FRAME_PART_C+FRAME_PART_A*(num*2)+FRAME_PART_C).center(100, '.')}"
+  print "\e[#{DIALOG_POS_H};H#{"A..."*25}" # 確認用(is dialog written on center)
+  (DIALOG_SIZE_W//2).times do |num|
+    print "\e[#{DIALOG_POS_H};#{100//2-num}H#{FRAME_PART_C+FRAME_PART_A*num*2+FRAME_PART_C}"
     1.upto(DIALOG_SIZE_H-1) do |n|
-      puts "\e[#{DIALOG_POS_H+n};H#{(FRAME_PART_B+"."*(num*2)+FRAME_PART_B).center(100, '.')}"
+      print "\e[#{DIALOG_POS_H+n};#{100//2-num}H\e[K#{FRAME_PART_B}\e[#{num*2}C#{FRAME_PART_B}"
     end
-    puts "\e[#{SCENE_SIZE_H};H#{(FRAME_PART_C+FRAME_PART_A*(num*2)+FRAME_PART_C).center(100, '.')}"
-    # puts "\e[16;H#{(FRAME_PART_B).ljust(num, '.')}"
+    print "\e[#{SCENE_SIZE_H};#{100//2-num}H#{FRAME_PART_C+FRAME_PART_A*num*2+FRAME_PART_C}"
     sleep 6.milliseconds
   end
 end
@@ -60,6 +61,14 @@ def make_game_play_dialog_solid
     puts "\e[#{SCENE_SIZE_H};H#{(FRAME_PART_C+FRAME_PART_A*(29*2)+FRAME_PART_C).center(100, '.')}"
 end
 
+def print_game_play_dialog_text
+  # 1行に入る文字数は半角58字(30*2-2)
+  pos = {{ (SCENE_SIZE_W-DIALOG_SIZE_W) // 2 + 2}}
+  print "\e[#{DIALOG_POS_H+1};#{pos}Hこんにちは!ABCいろは"
+  print "\e[#{DIALOG_POS_H+2};#{pos}H1234567890123456789012345678901234567890123456789012345678"
+  print "\e[#{DIALOG_POS_H+3};#{pos}HPress any key to exit."
+
+end
 # type_text 1, "こんにちは！\nコンソールをフォーカスしてえんたーをおしてね▼"
 # gets
 
