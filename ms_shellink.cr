@@ -5,6 +5,16 @@ ZEROS_2 = Bytes.new(2, 0)
 ZEROS_4 = Bytes.new(4, 0)
 ZEROS_8 = Bytes.new(8, 0)
 
+@[Link(dll: "Windows.Storage.dll")]
+lib LibShell32
+  fun a =
+    SHParseDisplayName(
+      p_szName : UInt16*,
+      p_pidl : Void**,
+      sfgaoIn : UInt16
+  ) : UInt16
+end
+
 file = File.open("text.txttxttxt")
 
 # link_flags = 0x9B_00_08_00_u32
@@ -45,6 +55,9 @@ prefer_environment_path = false       # Z
 keep_localIdListForUNCTarget = false  # AA
 # --------
 
+struct Bool
+end
+
 link_flags = (
   # (if has_workingDir;0x10 else 0 end) |
   # (if has_arguments;0x20 else 0 end) |
@@ -83,7 +96,6 @@ printf("0x%08X\n", link_flags)
 
 # puts (true.to_unsafe  << 4)
 
-exit
 
 link_flags = 0x00_08_00_9B_u32 # Windows 11 日本語での初期リンクフラグ
 
@@ -119,7 +131,20 @@ File.open("text_lnk", "wb") do |lnk|
   # 40-41 (2 bytes) HotKey
   lnk.write(ZEROS_2)  
   printf("%#x\n", lnk.pos)
-  # 42-4B (2-4-4 bytes)  ReServed 1-2-3
+  # 42-4B (2-4-4 bytes)  ReServed 1-2-3composed of
   lnk.write(Bytes.new(10, 0))
   # 4C-4D (2 bytes) IDListSize
+  # 4E-  (variable IDListSize-2 bytes) ItemIDList
+  # (2 bytes) TerminalID
+  lnk.write(ZEROS_2)
+  # itemIDSize
+  # itemID
+  # (4 bytes) LinkInfoSize
+  # (4 bytes) LinkInfoHeaderSize
+  # (4 bytes) LinkInfoFlags
+  # (4 bytes) VolumeIDOffset
+  # (4 bytes) LocalBasePathOffset
+  # (4 bytes) CommonNetWorkRelativeLinkOffset
+  # ...
+
 end
