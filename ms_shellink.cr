@@ -1,3 +1,7 @@
+{% raise <<-TXT unless flag?(:win32)
+your system is propably not Windows.
+TXT
+%}
 HEADER_SIZE = 76
 LINK_CLSID_A = 0x00021401
 
@@ -7,15 +11,33 @@ ZEROS_8 = Bytes.new(8, 0)
 
 @[Link(dll: "Windows.Storage.dll")]
 lib LibShell32
-  fun a =
+  fun sh_parse_display_name =
     SHParseDisplayName(
       p_szName : UInt16*,
+      p_bc :  Void*,
       p_pidl : Void**,
-      sfgaoIn : UInt16
+      sfgaoIn : UInt16,
+      p_sfgaoOut : UInt16*
   ) : UInt16
 end
 
-file = File.open("text.txttxttxt")
+path = Dir.current+"\\text.txttxttxt"
+# raise File::NotFoundError.new("file \"#{path}\" was not found", file: path) unless File.exists?(path)
+unless File.exists?(path)
+  print "file \"#{path}\" was not found."
+  exit
+end
+file = File.open(path)
+
+ret = Pointer(Void).null
+
+LibShell32.sh_parse_display_name(
+  path.to_utf16,
+  Pointer(Void).null,
+  pointerof(ret),
+  0_u16,
+  Pointer(UInt16).null
+)
 
 # link_flags = 0x9B_00_08_00_u32
 # link_flags = 0x00_08_00_9B_u32

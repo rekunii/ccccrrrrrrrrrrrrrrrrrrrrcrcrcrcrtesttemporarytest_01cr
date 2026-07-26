@@ -2,6 +2,10 @@
 # 入力待ちをする！
 # sleepする！
 
+unless File.basename(PROGRAM_NAME) == "crystal-run-#{File.basename(__FILE__, ".cr")}.exe.tmp.exe"
+  exit
+end
+
 CLS = "\e[2J\e[H"
 
 TEXT_PRINT_ANIMATION_STEP_SPAN_GLOBAL_TIMESPAN = {
@@ -61,8 +65,7 @@ def print_game_play_dialog_text
   print "\e[#{DIALOG_POS_H+3};#{pos}HPress any key to exit."
 end
 
-# make_game_play_dialog_animate
-make_game_play_dialog_solid
+make_game_play_dialog_animate
 
 STDIN.raw do |io|
   sleep 100.milliseconds
