@@ -22,11 +22,20 @@ struct Registers
   def pc; @pc; end
   def sp; @sp; end
   def flag_zero : Bool
-    @flag.bit(3)
+    @f.bit(7) == 1
   end
+  def flag_subtract : Bool
+    @f.bit(6) == 1
+  end
+  def flag_half_carry : Bool
+    @f.bit(5) == 1
+  end
+  def flag_carry : Bool
+    @f.bit(4) == 1
+  end
+
   # def a; @a; end
   # def a=(val); @a=val;end
-
 
   def bc : UInt16
     (@b.to_u16 << 8) | @c.to_u16
@@ -37,5 +46,36 @@ puts Registers.new.bc
 # puts Registers.new.Flags.new.z
 aaa = Registers.new
 aaa.a=300
+aaa.f = 0b10100000_u8
 puts aaa.a
+puts "0x%02X" % aaa.f
 puts aaa.flag_zero
+puts aaa.flag_subtract
+puts aaa.flag_half_carry
+puts aaa.flag_carry
+
+# enum Instructions
+#   ADD(ArithmeticTarget)
+# end
+abstract class Instructions
+end
+
+class Add < Instructions
+  getter target : ArithmeticTarget
+  def initialize(target : ArithmeticTarget)
+    @target = target
+  end
+end
+
+enum ArithmeticTarget
+  A; B; C; D; E; H; L 
+end
+
+class Cpu
+  def execute(instructions : Instructions)
+    puts "ok"
+  end
+end
+
+inst = Add.new(ArithmeticTarget::A)
+Cpu.new.execute(inst)
