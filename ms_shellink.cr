@@ -29,15 +29,48 @@ unless File.exists?(path)
 end
 file = File.open(path)
 
-ret = Pointer(Void).null
+pidl = Pointer(Void).null
 
 LibShell32.sh_parse_display_name(
   path.to_utf16,
   Pointer(Void).null,
-  pointerof(ret),
+  pointerof(pidl),
   0_u16,
   Pointer(UInt16).null
 )
+
+def pidl_total_byteSize(pidl : Pointer(Void))
+  u8_pidl = pidl.as(UInt8*) 
+  total = 2 # terminalID分をあらかじめ入れとくよ
+  loop do
+    section_size = u8_pidl.as(UInt16*).value # UInt16として2bytes取る
+    total += section_size
+    break if section_size == 0
+    u8_pidl += section_size # アドレスを進めるかんじ 加算元がUint16*だと2*section_sizeになってしまう
+  end
+  total
+end
+# aaaaaa = pidl.as(UInt16*)
+# pidl_total_size = 0
+# offset = 0
+# loop do
+#   section_size = aaaaaa.value
+#   # printf "%#02X\n", section_size
+#   # puts section_size.class
+#   pidl_total_size += section_size
+#   if section_size == 0_u16
+#     printf "terminal: %#02X\n", section_size
+#     pidl_total_size += 2
+#     break  
+#   end
+#   section_size.times do |i|
+#     bbbbbb = aaaaaa[i]
+#     printf ":%x\n", bbbbbb
+#   end
+#   aaaaaa += section_size
+#   offset += section_size
+# end
+# printf "%#02X\n", pidl_total_size
 
 # link_flags = 0x9B_00_08_00_u32
 # link_flags = 0x00_08_00_9B_u32
@@ -114,12 +147,17 @@ link_flags = (
   (prefer_environment_path.to_unsafe << 25) |
   (keep_localIdListForUNCTarget.to_unsafe << 26)
 ).to_u32
-printf("0x%08X\n", link_flags)
+# printf("link flags = 0x%08X\n", link_flags)
 
-# puts (true.to_unsafe  << 4)
+# link_flags = 0x00_08_00_9B_u32 # Windows 11 日本語での初期リンクフラグ
 
-
-link_flags = 0x00_08_00_9B_u32 # Windows 11 日本語での初期リンクフラグ
+begin
+  lnk = File.new("text_lnk", "wb")
+  lnk.close
+rescue err : File::Error
+  puts err.class
+  exit 1
+end
 
 File.open("text_lnk", "wb") do |lnk|
   # 00-03 (4 bytes) HeaderSize
@@ -152,13 +190,14 @@ File.open("text_lnk", "wb") do |lnk|
   lnk.write_bytes(0x01)
   # 40-41 (2 bytes) HotKey
   lnk.write(ZEROS_2)  
-  printf("%#x\n", lnk.pos)
   # 42-4B (2-4-4 bytes)  ReServed 1-2-3composed of
   lnk.write(Bytes.new(10, 0))
   # 4C-4D (2 bytes) IDListSize
   # 4E-  (variable IDListSize-2 bytes) ItemIDList
   # (2 bytes) TerminalID
-  lnk.write(ZEROS_2)
+  size_IDList = pidl_total_byteSize(pidl)
+  printf "IDList size = %#04x\n", size_IDList
+  lnk.write(Bytes.new(pidl.as(UInt8*), size_IDList))
   # itemIDSize
   # itemID
   # (4 bytes) LinkInfoSize
@@ -169,4 +208,5 @@ File.open("text_lnk", "wb") do |lnk|
   # (4 bytes) CommonNetWorkRelativeLinkOffset
   # ...
 
+  printf("file written to %#x...\n", lnk.pos)
 end
