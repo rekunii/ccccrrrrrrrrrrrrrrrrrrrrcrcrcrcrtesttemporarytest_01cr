@@ -23,6 +23,9 @@ struct Registers
   end
   {% end %}
   def pc; @pc; end
+  def pc=(val : UInt16) : Nil
+    @pc = val
+  end
   def sp; @sp; end
 
   # TODO
@@ -66,13 +69,26 @@ struct Registers
   end
 end
 
+def from_byte(val : UInt8) : Instructions | Nil
+  case val
+  when 0x81
+    puts "ADD C"
+    Add.new(ArithmeticTarget::C)
+  when 0x87
+    puts "ADD A"
+    Add.new(ArithmeticTarget::A)
+  else
+    nil
+  end
+end
+
 abstract class Instructions
 end
 
 class Add < Instructions
   getter target : ArithmeticTarget
   getter value : UInt8
-  def initialize(target : ArithmeticTarget, value : UInt8)
+  def initialize(target : ArithmeticTarget, value : UInt8 = 0)
     @target = target
     @value = value
   end
@@ -82,20 +98,47 @@ enum ArithmeticTarget
   A; B; C; D; E; H; L 
 end
 
+struct MemoryBus
+  @memory = Bytes.new(0xFFFF, 0_u8)
+  def memory
+    @memory
+  end
+end
+
 class Cpu
   getter reg
   @reg = Registers.new
+  getter bus
+  @bus = MemoryBus.new
+
+  def step
+    # puts "pc: #{@reg.pc}"
+    instruction_byte = bus.memory.fetch(@reg.pc) {raise "えらー"}
+
+    next_pc = if inst = from_byte(instruction_byte)
+      execute(inst)
+    else
+      printf "\nunknown opcodes detected.\npc: 0x%04X\nopcode: 0x%02X\n", @reg.pc, instruction_byte
+      exit 1
+    end
+    @reg.pc = next_pc
+    # puts "next_pc: #{next_pc}"
+  end
+  
   def execute(instruction : Instructions)
     target = instruction.target
     case instruction
     when Add
       case target
       when ArithmeticTarget::A
-        printf "(((BEFORE)))\nreg.a=0x%02X\nflags=%04s\n\n", @reg.a, @reg.f.to_s(2)[..-5]
-        @reg.a = add(instruction.value)
-        printf "(((AFTER)))\nreg.a=0x%02X\nflags=%04s\n\n", @reg.a, @reg.f.to_s(2)[..-5]
+        @reg.a = add(@reg.a)
+        return @reg.pc &+ 1
+      when ArithmeticTarget::C
+        @reg.a = add(@reg.c)
+        return @reg.pc &+ 1
       end
     end
+    0_u16
   end
 
   def add(value : UInt8) : UInt8
@@ -107,9 +150,17 @@ class Cpu
   end
 end
 
-inst = Add.new(ArithmeticTarget::A, 10_u8)
+# inst = Add.new(ArithmeticTarget::A, 10_u8)
 cpu = Cpu.new
-3.times do |count|
+cpu.reg.c = 0x10
+opcodes = [0x81, 0x87, 0x81, 0x3C]
+4.times do |count|
+  cpu.bus.memory[count] = opcodes[count].to_u8
   puts "------------#{count+1}回目の実行"
-  cpu.execute(inst)
+  cpu.step
+  printf("register a = 0x%02X\nregister c = 0x%02X\nregister f = %04s\npc = 0x%04X\n",
+  cpu.reg.a,
+  cpu.reg.c,
+  cpu.reg.f.to_s(2, precision: 8)[..-5],
+  cpu.reg.pc)
 end
