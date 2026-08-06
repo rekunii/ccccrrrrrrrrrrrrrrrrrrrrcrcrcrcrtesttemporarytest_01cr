@@ -2,6 +2,13 @@
 # [How to Emulate a Game Boy - rylev](https://rylev.github.io/DMG-01/public/book/introduction.html)
 
 # require "bit_array"
+
+struct Bool
+ def asNum : UInt8
+  self.to_unsafe.to_u8
+ end
+end
+
 struct Registers
   def initialize
     @a = 0_u8
@@ -69,8 +76,20 @@ struct Registers
   end
 end
 
-def from_byte(val : UInt8) : Instructions | Nil
-  case val
+def from_byte(byte : UInt8, prefixed : Bool) : Instructions | Nil
+  if prefixed
+    from_byte_prefixed(byte)
+  else
+    from_byte_not_prefixed(byte)
+  end
+end
+
+def from_byte_prefixed(byte : UInt8)
+  nil
+end
+
+def from_byte_not_prefixed(byte : UInt8)
+    case byte
   when 0x81
     puts "ADD C"
     Add.new(ArithmeticTarget::C)
@@ -94,8 +113,39 @@ class Add < Instructions
   end
 end
 
+class LD < Instructions
+  getter load_type : LoadType
+  def initialize(load_type : LoadType)
+    @load_type = load_type
+  end
+end
+
+class JP < Instructions
+  getter test : JumpTest
+  def initialize(test : JumpTest)
+    @test = test
+  end
+end
+
 enum ArithmeticTarget
   A; B; C; D; E; H; L 
+end
+
+enum LoadByteTarget
+  A; B; C; D; E; H; L; HLI
+end
+
+enum LoadByteSource
+  A; B; C; D; E; H; L; D8; HLI
+end
+
+struct LoadType
+  getter target : LoadByteTarget
+  getter source : LoadByteSource
+  def initialize(target : LoadByteTarget, source : LoadByteSource)
+    @target = target
+    @source = source
+  end
 end
 
 struct MemoryBus
@@ -103,6 +153,10 @@ struct MemoryBus
   def memory
     @memory
   end
+end
+
+enum JumpTest
+  NotZero; Zero; NotCarry; Carry; Always
 end
 
 class Cpu
@@ -114,8 +168,13 @@ class Cpu
   def step
     # puts "pc: #{@reg.pc}"
     instruction_byte = bus.memory.fetch(@reg.pc) {raise "えらー"}
+    prefixed = instruction_byte == 0xCB
+    if prefixed
+      @reg.pc += prefixed.asNum
+      instruction_byte = bus.memory.fetch(@reg.pc) {raise "えらー"}
+    end
 
-    next_pc = if inst = from_byte(instruction_byte)
+    next_pc = if inst = from_byte(instruction_byte, prefixed)
       execute(inst)
     else
       printf "\nunknown opcodes detected.\npc: 0x%04X\nopcode: 0x%02X\n", @reg.pc, instruction_byte
@@ -126,10 +185,9 @@ class Cpu
   end
   
   def execute(instruction : Instructions)
-    target = instruction.target
     case instruction
     when Add
-      case target
+      case instruction.target
       when ArithmeticTarget::A
         @reg.a = add(@reg.a)
         return @reg.pc &+ 1
@@ -137,6 +195,30 @@ class Cpu
         @reg.a = add(@reg.c)
         return @reg.pc &+ 1
       end
+    when LD
+      source = 
+      case instruction.load_type.source
+      when LoadByteSource::A
+        @reg.a
+      when LoadByteSource::B
+        @reg.b
+      end
+    when JP
+      test = instruction.test
+      jump_condition = 
+      case test
+      when JumpTest::NotZero
+        !@reg.flag_zero
+      when NotCarry
+        !@reg.flag_carry
+      when JumpTest::Zero
+        @reg.flag_zero
+      when JumpTest::Carry
+        @reg.flag_carry
+      when JumpTest::Always
+        true
+      end
+      jump(jump_condition)
     end
     0_u16
   end
@@ -147,6 +229,9 @@ class Cpu
     @reg.flag_half_carry = (@reg.a&0xf) + (value&0xf) > 0xf
     @reg.flag_carry = value > UInt8::MAX-@reg.a
     @reg.a &+ value
+  end
+
+  def jump
   end
 end
 
