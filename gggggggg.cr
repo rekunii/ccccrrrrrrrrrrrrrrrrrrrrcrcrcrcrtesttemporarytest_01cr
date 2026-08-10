@@ -1,5 +1,6 @@
 # ## Credits
 # [How to Emulate a Game Boy - rylev](https://rylev.github.io/DMG-01/public/book/introduction.html)
+# https://gbdev.io/gb-opcodes/optables/
 
 # require "bit_array"
 
@@ -29,6 +30,9 @@ struct Registers
     @{{name.id}}=(val&0xff).to_u8
   end
   {% end %}
+  def hl : UInt16
+    @h.to_u16 << 8 | @l
+  end
   def pc; @pc; end
   def pc=(val : UInt16) : Nil
     @pc = val
@@ -169,10 +173,10 @@ class Cpu
     # puts "pc: #{@reg.pc}"
     instruction_byte = bus.memory.fetch(@reg.pc) {raise "えらー"}
     prefixed = instruction_byte == 0xCB
-    if prefixed
-      @reg.pc += prefixed.asNum
-      instruction_byte = bus.memory.fetch(@reg.pc) {raise "えらー"}
-    end
+    # if prefixed
+    @reg.pc += prefixed.asNum
+    instruction_byte = bus.memory.fetch(@reg.pc) {raise "えらー"}
+    # end
 
     next_pc = if inst = from_byte(instruction_byte, prefixed)
       execute(inst)
@@ -196,20 +200,24 @@ class Cpu
         return @reg.pc &+ 1
       end
     when LD
-      source = 
+      source_value = 
       case instruction.load_type.source
       when LoadByteSource::A
         @reg.a
       when LoadByteSource::B
         @reg.b
       end
+    case instruction..target\
+    when LoadByteTarget::A
+      @reg.a = source_value
+    end
     when JP
       test = instruction.test
       jump_condition = 
       case test
       when JumpTest::NotZero
         !@reg.flag_zero
-      when NotCarry
+      when JumpTest::NotCarry
         !@reg.flag_carry
       when JumpTest::Zero
         @reg.flag_zero
@@ -217,8 +225,10 @@ class Cpu
         @reg.flag_carry
       when JumpTest::Always
         true
+      else 
+        false
       end
-      jump(jump_condition)
+      return jump(jump_condition)
     end
     0_u16
   end
@@ -231,15 +241,25 @@ class Cpu
     @reg.a &+ value
   end
 
-  def jump
+  def jump(should_jump : Bool) : UInt16
+    if should_jump
+      # 下位ビット
+      least_significant_byte = @bus.memory.fetch(@reg.pc+1, 0)
+      # 上位ビット
+      most_significant_byte = @bus.memory.fetch(@reg.pc+2, 0).to_u16
+      
+      return (most_significant_byte << 8) | least_significant_byte
+    else
+      @reg.pc &+ 3
+    end
   end
 end
 
 # inst = Add.new(ArithmeticTarget::A, 10_u8)
 cpu = Cpu.new
 cpu.reg.c = 0x10
-opcodes = [0x81, 0x87, 0x81, 0x3C]
-4.times do |count|
+opcodes = [0x81, 0x87, 0x81]
+opcodes.size.times do |count|
   cpu.bus.memory[count] = opcodes[count].to_u8
   puts "------------#{count+1}回目の実行"
   cpu.step
@@ -249,3 +269,11 @@ opcodes = [0x81, 0x87, 0x81, 0x3C]
   cpu.reg.f.to_s(2, precision: 8)[..-5],
   cpu.reg.pc)
 end
+
+puts "------------"
+cpu.bus.memory[4] = 0xff_u8
+cpu.bus.memory[5] = 0x12_u8
+jump = JP.new(JumpTest::Always) # たぶん0xC3
+val = cpu.execute(jump)
+printf("0x%04x\n", val) # JMP先ADDR、pcにぶちこむ
+cpu.reg.pc = val 
