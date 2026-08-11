@@ -30,6 +30,13 @@ struct Registers
     @{{name.id}}=(val&0xff).to_u8
   end
   {% end %}
+  def bc : UInt16
+    @b.to_u16 << 8 | @c
+  end
+  def bc=(value : UInt16)
+    @b = (value >> 8).to_u8
+    @c = (value & 0xff).to_u8
+  end
   def hl : UInt16
     @h.to_u16 << 8 | @l
   end
@@ -131,6 +138,20 @@ class JP < Instructions
   end
 end
 
+class PUSH < Instructions
+  getter target
+  def initialize(target : StackTarget)
+    @target = target
+  end
+end
+
+class POP < Instructions
+  getter target
+  def initialize(target : StackTarget)
+    @target = target
+  end
+end
+
 enum ArithmeticTarget
   A; B; C; D; E; H; L 
 end
@@ -153,14 +174,21 @@ struct LoadType
 end
 
 struct MemoryBus
-  @memory = Bytes.new(0xFFFF, 0_u8)
+  @memory = Bytes.new(0x10000, 0_u8)
   def memory
     @memory
+  end
+  def fetch(addr : UInt16) : UInt8
+    @memory.fetch(addr) {raise "範囲外のbusアクセスが発生"}
   end
 end
 
 enum JumpTest
   NotZero; Zero; NotCarry; Carry; Always
+end
+
+enum StackTarget
+  BC
 end
 
 class Cpu
@@ -169,16 +197,17 @@ class Cpu
   getter bus
   @bus = MemoryBus.new
 
+  @pc = 0_u16
+  @sp = 0_u16
+
   def step
     # puts "pc: #{@reg.pc}"
-    instruction_byte = bus.memory.fetch(@reg.pc) {raise "えらー"}
+    instruction_byte = bus.fetch(@reg.pc)
     prefixed = instruction_byte == 0xCB
-    # if prefixed
     @reg.pc += prefixed.asNum
-    instruction_byte = bus.memory.fetch(@reg.pc) {raise "えらー"}
-    # end
+    instruction_byte = bus.fetch(@reg.pc) 
 
-    next_pc = if inst = from_byte(instruction_byte, prefixed)
+    next_pc : UInt16 = if inst = from_byte(instruction_byte, prefixed)
       execute(inst)
     else
       printf "\nunknown opcodes detected.\npc: 0x%04X\nopcode: 0x%02X\n", @reg.pc, instruction_byte
@@ -200,17 +229,27 @@ class Cpu
         return @reg.pc &+ 1
       end
     when LD
-      source_value = 
+      source_value : UInt8 = 
       case instruction.load_type.source
       when LoadByteSource::A
         @reg.a
       when LoadByteSource::B
         @reg.b
+      when LoadByteSource::D8
+        0_u8 # read_next_byte
+      when LoadByteSource::HLI
+        @bus.fetch(@reg.hl)
+      else
+        0_u8
       end
-    case instruction..target\
-    when LoadByteTarget::A
-      @reg.a = source_value
-    end
+      case instruction.load_type.target
+      when LoadByteTarget::A
+        @reg.a = source_value
+      when LoadByteTarget::HLI
+        @bus.memory[@reg.hl] = source_value
+      end
+      return 1+(instruction.load_type.source === LoadByteSource::D8).asNum
+
     when JP
       test = instruction.test
       jump_condition = 
@@ -229,7 +268,29 @@ class Cpu
         false
       end
       return jump(jump_condition)
+    # end
+
+    when PUSH
+      value : UInt16 =  
+      case instruction.target
+      when StackTarget::BC
+        @reg.bc
+      else
+        0_u16
+      end
+      push(value)
+      return @reg.pc &+ 1
+    # end
+
+    when POP
+      result : UInt16 = pop
+      case instruction.target
+      when StackTarget::BC
+        @reg.bc = result
+      end
+      return @reg.pc &+ 1
     end
+    # next_pcの値がreturnされない場合には0_u16を返す
     0_u16
   end
 
@@ -244,14 +305,30 @@ class Cpu
   def jump(should_jump : Bool) : UInt16
     if should_jump
       # 下位ビット
-      least_significant_byte = @bus.memory.fetch(@reg.pc+1, 0)
+      least_significant_byte = @bus.fetch(@reg.pc+1)
       # 上位ビット
-      most_significant_byte = @bus.memory.fetch(@reg.pc+2, 0).to_u16
+      most_significant_byte = @bus.fetch(@reg.pc+2).to_u16
       
       return (most_significant_byte << 8) | least_significant_byte
     else
       @reg.pc &+ 3
     end
+  end
+
+  def push(value : UInt16)
+    @sp &-= 1
+    @bus.memory[@sp] = ((value & 0xFF00) >> 8).to_u8
+
+    @sp &-= 1
+    @bus.memory[@sp] = (value & 0xFF).to_u8
+  end
+
+  def pop : UInt16
+    lsb = @bus.memory[@sp]
+    @sp &+= 1
+    msb = @bus.memory[@sp].to_u16
+    @sp &+= 1
+    (msb << 8) | lsb
   end
 end
 
@@ -274,6 +351,4 @@ puts "------------"
 cpu.bus.memory[4] = 0xff_u8
 cpu.bus.memory[5] = 0x12_u8
 jump = JP.new(JumpTest::Always) # たぶん0xC3
-val = cpu.execute(jump)
-printf("0x%04x\n", val) # JMP先ADDR、pcにぶちこむ
-cpu.reg.pc = val 
+printf("0x%04X\n", cpu.reg.pc)
