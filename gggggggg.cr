@@ -267,7 +267,7 @@ class Cpu
       else 
         false
       end
-      return jump(jump_condition)
+      @reg.pc = jump(jump_condition)
     # end
 
     when PUSH
@@ -303,6 +303,7 @@ class Cpu
   end
 
   def jump(should_jump : Bool) : UInt16
+    puts should_jump
     if should_jump
       # 下位ビット
       least_significant_byte = @bus.fetch(@reg.pc+1)
@@ -351,4 +352,5 @@ puts "------------"
 cpu.bus.memory[4] = 0xff_u8
 cpu.bus.memory[5] = 0x12_u8
 jump = JP.new(JumpTest::Always) # たぶん0xC3
+cpu.execute(jump)
 printf("0x%04X\n", cpu.reg.pc)
