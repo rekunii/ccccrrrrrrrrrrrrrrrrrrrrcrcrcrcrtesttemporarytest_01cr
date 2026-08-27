@@ -3,6 +3,9 @@
 # https://gbdev.io/gb-opcodes/optables/
 
 # require "bit_array"
+VRAM_BEGIN = 0x8000_u16
+VRAM_END = 0x97FF_u16
+VRAM_SIZE = 0x1800_u16
 
 struct Bool
  def asNum : UInt8
@@ -152,6 +155,12 @@ class POP < Instructions
   end
 end
 
+class CALL < Instructions
+end
+
+class RET < Instructions
+end
+
 enum ArithmeticTarget
   A; B; C; D; E; H; L 
 end
@@ -164,12 +173,36 @@ enum LoadByteSource
   A; B; C; D; E; H; L; D8; HLI
 end
 
+enum TilePixelValue
+  Zero; One; Two; Three
+end
+
 struct LoadType
   getter target : LoadByteTarget
   getter source : LoadByteSource
   def initialize(target : LoadByteTarget, source : LoadByteSource)
     @target = target
     @source = source
+  end
+end
+
+alias Tile = Array(Array(TilePixelValue))
+
+def empty_tile : Tile
+  Array.new(8, Array.new(8, TilePixelValue::Zero))
+end
+
+struct GPU
+  @vram = Array(UInt8).new(VRAM_SIZE)
+  @tile_set = Array(Tile).new(384)
+  def read_vram(addr : UInt16) : UInt8
+    @vram[addr]
+  end
+  def write_vram(index : UInt8, vallue : UInt8)
+    normalized_index = index & 0xFFFE
+    byte1 = @vram[normalized_index];
+    byte2 = @vram[normalized_index+1];
+    
   end
 end
 
@@ -180,6 +213,22 @@ struct MemoryBus
   end
   def fetch(addr : UInt16) : UInt8
     @memory.fetch(addr) {raise "範囲外のbusアクセスが発生"}
+  end
+  
+  def read_byte(addr : UInt16) : UInt8
+    case addr
+    when VRAM_BEGIN..VRAM_END
+      @gpu.read_vram(addr - VRAM_BEGIN)
+    else
+      raise "TODO: Support other areas of memory"
+    end
+  end
+
+  def write_byte(addr : UInt16) : UInt8
+    case addr
+    when VRAM_BEGIN..VRAM_END
+      raise "TODO: Support other areas of memory"
+    end
   end
 end
 
@@ -289,6 +338,14 @@ class Cpu
         @reg.bc = result
       end
       return @reg.pc &+ 1
+    when CALL
+      jump_condition = true
+      # case instruction.test
+      # when JumpTest::NotZero
+      call(jump_condition)
+    when RET
+      jump_condition = true
+      return_(jump_condition)
     end
     # next_pcの値がreturnされない場合には0_u16を返す
     0_u16
@@ -331,7 +388,24 @@ class Cpu
     @sp &+= 1
     (msb << 8) | lsb
   end
+
+  def call(should_jump : Bool) : UInt16
+    next_pc : UInt16 = @reg.pc &+ 3
+    if should_jump
+      push next_pc
+      jump true
+    else
+      next_pc
+    end
+  end
+
+  def return_(should_jump : Bool) : UInt16
+    should_jump ? pop : @reg.pc&+1
+  end
+
 end
+
+
 
 # inst = Add.new(ArithmeticTarget::A, 10_u8)
 cpu = Cpu.new
