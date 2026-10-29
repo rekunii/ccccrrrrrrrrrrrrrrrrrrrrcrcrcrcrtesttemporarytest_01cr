@@ -198,11 +198,42 @@ struct GPU
   def read_vram(addr : UInt16) : UInt8
     @vram[addr]
   end
-  def write_vram(index : UInt8, vallue : UInt8)
+  def write_vram(index : UInt16, vallue : UInt8)
+    @vram[index] = value
+
+    return if index >= 0x1800
+
+    # 8000-87FF: First part of tile set #1
+    # 8800-8FFF: Second part of tile set #1
+    #            First part of tile set #2
+    # 9000-97FF: Second part of tile set #2
+
+
     normalized_index = index & 0xFFFE
     byte1 = @vram[normalized_index];
     byte2 = @vram[normalized_index+1];
-    
+    tile_index = index // 16
+    row_index = index % 16 // 2
+
+    8.times do |pixel_index|
+      
+      mask = 1 << (7 - pixel_index)
+
+      dark = byte1.bit_set?(mask)
+      light = byte2.bit_set?(mask)
+
+      value = if dark & light
+        TilePixelValue::Three
+      elsif !dark && light
+        TilePixelValue::One
+      elsif dark && !light
+        TilePixelValue::One
+      elsif !(dark & light)
+        TilePixelValue::Zero
+      end
+
+      @tile_set[tile_index][row_index][pixel_index] = value
+    end
   end
 end
 
